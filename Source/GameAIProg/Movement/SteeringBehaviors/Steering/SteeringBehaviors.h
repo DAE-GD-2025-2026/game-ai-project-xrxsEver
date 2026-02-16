@@ -21,8 +21,11 @@ public:
 	T* As()
 	{ return static_cast<T*>(this); }
 
+
 protected:
 	FTargetData Target;
+	
+	FVector2D GetPredictedPosition(const ASteeringAgent& Agent) const;
 };
 
 // Your own SteeringBehaviors should follow here...
