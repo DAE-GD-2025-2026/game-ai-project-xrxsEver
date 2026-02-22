@@ -100,8 +100,8 @@ public:
 	void SetMaxAngleChange(float rad) { m_MaxAngleChange = rad; }
 	
 protected:
-	float m_OffsetDistance = 450.f;
-	float m_Radius = 250.f;
+	float m_OffsetDistance = 250.f;
+	float m_Radius = 75.f;
 	float m_MaxAngleChange = 0.078f; //to radian(45)
 	float m_WanderAngle = 0.f;
 }; 
