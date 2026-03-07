@@ -7,6 +7,8 @@
 #include "GameAIProg/Shared/Level_Base.h"
 #include "GameAIProg/Movement/SteeringBehaviors/Steering/SteeringBehaviors.h"
 #include "GameAIProg/Movement/SteeringBehaviors/SteeringAgent.h"
+#include <memory>
+#include <vector>
 #include "Level_CombinedSteering.generated.h"
 
 UCLASS()
@@ -28,9 +30,26 @@ protected:
 	virtual void BeginDestroy() override;
 
 private:
-	//Datamembers
+	// Datamembers
 	bool UseMouseTarget = false;
 	bool CanDebugRender = false;
 
-	
+	// Agents (all do the same: BlendedSteering with Wander + Evade)
+	struct AgentData
+	{
+		ASteeringAgent *Agent = nullptr;
+		std::unique_ptr<Wander> WanderBehavior;
+		std::unique_ptr<Evade> EvadeBehavior;
+		std::unique_ptr<BlendedSteering> Blended;
+
+		AgentData() = default;
+		AgentData(AgentData &&) = default;
+		AgentData &operator=(AgentData &&) = default;
+	};
+
+	std::vector<AgentData> Agents;
+	int AgentIndexToRemove = -1;
+
+	void SpawnAgent(const FVector &Location);
+	void RemoveAgent(int Index);
 };

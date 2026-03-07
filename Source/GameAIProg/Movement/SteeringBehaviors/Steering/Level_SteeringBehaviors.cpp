@@ -6,7 +6,6 @@
 #include <string>
 #include "imgui.h"
 
-
 // Sets default values
 ALevel_SteeringBehaviors::ALevel_SteeringBehaviors()
 {
@@ -38,40 +37,41 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 	ImGui::SetNextWindowSize(WindowSize);
 	ImGui::Begin("Game AI", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
-	//Elements
+	// Elements
 	ImGui::Text("CONTROLS");
 	ImGui::Indent();
 	ImGui::Text("LMB: place target");
 	ImGui::Text("WASD: move cam");
 	ImGui::Text("Scrollwheel: zoom cam");
 	ImGui::Unindent();
-	
+
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
 	ImGui::Spacing();
-	
+
 	ImGui::Text("STATS");
 	ImGui::Indent();
 	ImGui::Text("%.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 	ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
 	ImGui::Unindent();
-	
+
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
 	ImGui::Spacing();
-	
+
 	ImGui::Text("Steering Behaviors");
 	ImGui::Spacing();
 	ImGui::Spacing();
-	
+
 	ImGui::Checkbox("Trim World", &TrimWorld->bShouldTrimWorld);
 	if (TrimWorld->bShouldTrimWorld)
 	{
 		ImGuiHelpers::ImGuiSliderFloatWithSetter("Trim Size",
-			TrimWorld->GetTrimWorldSize(), 1000.f, 3000.f,
-			[this](float InVal) { TrimWorld->SetTrimWorldSize(InVal); });
+												 TrimWorld->GetTrimWorldSize(), 1000.f, 3000.f,
+												 [this](float InVal)
+												 { TrimWorld->SetTrimWorldSize(InVal); });
 	}
 	ImGui::Spacing();
 
@@ -83,13 +83,13 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 	for (int i{0}; i < SteeringAgents.size(); ++i)
 	{
 		ImGui::PushID(i);
-		ImGui_Agent& a = SteeringAgents[i];
-		
+		ImGui_Agent &a = SteeringAgents[i];
+
 		std::string agentHeader{std::format("Agent {}:", i)};
 		if (ImGui::CollapsingHeader(agentHeader.c_str()))
 		{
 			ImGui::Indent();
-			//Actor Props
+			// Actor Props
 			if (ImGui::CollapsingHeader("Properties"))
 			{
 				float v = a.Agent->GetMaxLinearSpeed();
@@ -104,7 +104,7 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 				if (ImGui::SliderFloat("Mass ", &v, 0.f, 100.f, "%.2f"))
 					a.Agent->SetMass(v);
 			}
-			
+
 			bool bBehaviourModified = false;
 
 			ImGui::Spacing();
@@ -121,17 +121,16 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 			ImGui::PopItemWidth();
 			ImGui::PopID();
 
-			
 			ImGui::Spacing();
 			ImGui::PushID(i + 100);
 			ImGui::Text(" Target: ");
 			ImGui::SameLine();
 			ImGui::PushItemWidth(100);
-			
+
 			int selectedTargetOffset = a.SelectedTarget + 1;
 			std::string const Label{""};
 			std::string Targets{};
-			for (auto const & Target : TargetLabels)
+			for (auto const &Target : TargetLabels)
 			{
 				Targets += Target;
 				Targets += '\0';
@@ -141,13 +140,12 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 				a.SelectedTarget = selectedTargetOffset - 1;
 				bBehaviourModified = true;
 			}
-			
+
 			ImGui::PopItemWidth();
 			ImGui::PopID();
 			ImGui::Spacing();
 			ImGui::Spacing();
-			
-			
+
 			if (bBehaviourModified)
 				SetAgentBehavior(a);
 
@@ -166,8 +164,8 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 
 			ImGui::Unindent();
 		}
-#pragma endregion 
-		
+#pragma endregion
+
 		ImGui::PopID();
 	}
 
@@ -176,11 +174,11 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 		RemoveAgent(AgentIndexToRemove);
 		AgentIndexToRemove = -1;
 	}
-	
+
 	ImGui::End();
 #pragma endregion
 
-	for (ImGui_Agent& a : SteeringAgents)
+	for (ImGui_Agent &a : SteeringAgents)
 	{
 		if (a.Agent)
 		{
@@ -192,16 +190,16 @@ void ALevel_SteeringBehaviors::Tick(float DeltaTime)
 bool ALevel_SteeringBehaviors::AddAgent(BehaviorTypes BehaviorType, bool AutoOrient)
 {
 	ImGui_Agent ImGuiAgent = {};
-	ImGuiAgent.Agent = GetWorld()->SpawnActor<ASteeringAgent>(SteeringAgentClass, FVector{0,0,90}, FRotator::ZeroRotator);
+	ImGuiAgent.Agent = GetWorld()->SpawnActor<ASteeringAgent>(SteeringAgentClass, FVector{0, 0, 90}, FRotator::ZeroRotator);
 	if (IsValid(ImGuiAgent.Agent))
 	{
 		ImGuiAgent.SelectedBehavior = static_cast<int>(BehaviorType);
 		ImGuiAgent.SelectedTarget = -1; // Mouse
-		
+
 		SetAgentBehavior(ImGuiAgent);
 
 		SteeringAgents.push_back(std::move(ImGuiAgent));
-		
+
 		RefreshTargetLabels();
 
 		return true;
@@ -219,13 +217,20 @@ void ALevel_SteeringBehaviors::RemoveAgent(unsigned int Index)
 	RefreshAgentTargets(Index);
 }
 
-void ALevel_SteeringBehaviors::SetAgentBehavior(ImGui_Agent& Agent)
+void ALevel_SteeringBehaviors::SetAgentBehavior(ImGui_Agent &Agent)
 {
+	// Restore original speed when switching away from Arrive
+	if (Agent.Behavior && static_cast<BehaviorTypes>(Agent.SelectedBehavior) == BehaviorTypes::Arrive)
+	{
+		float OrigSpeed = static_cast<Arrive *>(Agent.Behavior.get())->GetOriginalMaxSpeed();
+		if (OrigSpeed > 0.f)
+			Agent.Agent->SetMaxLinearSpeed(OrigSpeed);
+	}
 	Agent.Behavior.reset();
-	
+
 	switch (static_cast<BehaviorTypes>(Agent.SelectedBehavior))
 	{
-	//TODO; Implement behaviors setting here
+	// TODO; Implement behaviors setting here
 	case BehaviorTypes::Seek:
 		Agent.Behavior = std::make_unique<Seek>();
 		break;
@@ -248,18 +253,18 @@ void ALevel_SteeringBehaviors::SetAgentBehavior(ImGui_Agent& Agent)
 		Agent.Behavior = std::make_unique<Wander>();
 		break;
 	default:
-		assert(false); // Incorrect Agent Behavior gotten during SetAgentBehavior()	
+		assert(false); // Incorrect Agent Behavior gotten during SetAgentBehavior()
 	}
 
 	UpdateTarget(Agent);
-	
+
 	Agent.Agent->SetSteeringBehavior(Agent.Behavior.get());
 }
 
 void ALevel_SteeringBehaviors::RefreshTargetLabels()
 {
 	TargetLabels.clear();
-	
+
 	TargetLabels.push_back("Mouse");
 	for (int i{0}; i < SteeringAgents.size(); ++i)
 	{
@@ -267,14 +272,14 @@ void ALevel_SteeringBehaviors::RefreshTargetLabels()
 	}
 }
 
-void ALevel_SteeringBehaviors::UpdateTarget(ImGui_Agent& Agent)
+void ALevel_SteeringBehaviors::UpdateTarget(ImGui_Agent &Agent)
 {
 	// Note: MouseTarget position is updated via Level BP every click
-	
+
 	bool const bUseMouseAsTarget = Agent.SelectedTarget < 0;
 	if (!bUseMouseAsTarget)
 	{
-		ASteeringAgent* const TargetAgent = SteeringAgents[Agent.SelectedTarget].Agent;
+		ASteeringAgent *const TargetAgent = SteeringAgents[Agent.SelectedTarget].Agent;
 
 		FTargetData Target;
 		Target.Position = TargetAgent->GetPosition();
@@ -294,14 +299,16 @@ void ALevel_SteeringBehaviors::RefreshAgentTargets(unsigned int IndexRemoved)
 {
 	for (UINT i = 0; i < SteeringAgents.size(); ++i)
 	{
-		if (i >= IndexRemoved)
+		auto &Agent = SteeringAgents[i];
+		if (Agent.SelectedTarget == static_cast<int>(IndexRemoved))
 		{
-			auto& Agent = SteeringAgents[i];
-			if (Agent.SelectedTarget == IndexRemoved || i  == Agent.SelectedTarget)
-			{
-				--Agent.SelectedTarget;
-			}
+			// Target was the removed agent, reset to mouse
+			Agent.SelectedTarget = -1;
+		}
+		else if (Agent.SelectedTarget > static_cast<int>(IndexRemoved))
+		{
+			// Target index shifted down after removal
+			--Agent.SelectedTarget;
 		}
 	}
 }
-
