@@ -1,8 +1,6 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Level_Flocking.h"
-
 
 // Sets default values
 ALevel_Flocking::ALevel_Flocking()
@@ -19,6 +17,16 @@ void ALevel_Flocking::BeginPlay()
 	TrimWorld->SetTrimWorldSize(3000.f);
 	TrimWorld->bShouldTrimWorld = true;
 
+	// Spawn the evade target agent (uses Wander so it moves independently)
+	pAgentToEvade = GetWorld()->SpawnActor<ASteeringAgent>(SteeringAgentClass, FVector(0, 0, 90), FRotator::ZeroRotator);
+	if (IsValid(pAgentToEvade))
+	{
+		pEvadeAgentWander = std::make_unique<Wander>();
+		pAgentToEvade->SetSteeringBehavior(pEvadeAgentWander.get());
+		pAgentToEvade->SetMaxLinearSpeed(400.f);
+		pAgentToEvade->SetDebugRenderingEnabled(true);
+	}
+
 	pFlock = TUniquePtr<Flock>(
 		new Flock(
 			GetWorld(),
@@ -26,8 +34,7 @@ void ALevel_Flocking::BeginPlay()
 			FlockSize,
 			TrimWorld->GetTrimWorldSize(),
 			pAgentToEvade,
-			true)
-			);
+			true));
 }
 
 // Called every frame
@@ -41,4 +48,3 @@ void ALevel_Flocking::Tick(float DeltaTime)
 	if (bUseMouseTarget)
 		pFlock->SetTarget_Seek(MouseTarget);
 }
-

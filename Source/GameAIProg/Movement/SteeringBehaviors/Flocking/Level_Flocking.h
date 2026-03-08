@@ -1,10 +1,10 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Flock.h"
 #include "Shared/Level_Base.h"
+#include "Movement/SteeringBehaviors/Steering/SteeringBehaviors.h"
+#include <memory>
 #include "Level_Flocking.generated.h"
 
 UCLASS()
@@ -17,6 +17,7 @@ public:
 	ALevel_Flocking();
 
 	virtual void Tick(float DeltaTime) override;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -26,7 +27,9 @@ protected:
 	int const FlockSize{100};
 
 	TUniquePtr<Flock> pFlock{};
-	
-	UPROPERTY(EditAnywhere, Category = "Flocking")
-	ASteeringAgent* pAgentToEvade{nullptr}; // non owning ref
+
+	ASteeringAgent *pAgentToEvade{nullptr};
+
+	// Evade agent uses Wander to move around independently
+	std::unique_ptr<Wander> pEvadeAgentWander{};
 };
