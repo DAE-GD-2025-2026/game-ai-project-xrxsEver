@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-// Toggle this define to enable/disable spatial partitioning
-// #define GAMEAI_USE_SPACE_PARTITIONING
+// Toggle this define to compile with spatial partitioning support
+#define GAMEAI_USE_SPACE_PARTITIONING
 
 #include "FlockingSteeringBehaviors.h"
 #include "Movement/SteeringBehaviors/SteeringAgent.h"
@@ -10,7 +10,7 @@
 #include <memory>
 #include "imgui.h"
 #ifdef GAMEAI_USE_SPACE_PARTITIONING
-#include "../SpacePartitioning/SpacePartitioning.h"
+class CellSpace; // Forward declaration - include in .cpp only
 #endif
 
 class Flock final
@@ -30,14 +30,9 @@ public:
 	void RenderDebug();
 	void ImGuiRender(ImVec2 const &WindowPos, ImVec2 const &WindowSize);
 
-#ifdef GAMEAI_USE_SPACE_PARTITIONING
-	// const TArray<ASteeringAgent*>& GetNeighbors() const { return pPartitionedSpace->GetNeighbors(); }
-	// int GetNrOfNeighbors() const { return pPartitionedSpace->GetNrOfNeighbors(); }
-#else  // No space partitioning
 	void RegisterNeighbors(ASteeringAgent *const Agent);
-	int GetNrOfNeighbors() const { return NrOfNeighbors; }
-	const TArray<ASteeringAgent *> &GetNeighbors() const { return Neighbors; }
-#endif // USE_SPACE_PARTITIONING
+	int GetNrOfNeighbors() const;
+	const TArray<ASteeringAgent *> &GetNeighbors() const;
 
 	FVector2D GetAverageNeighborPos() const;
 	FVector2D GetAverageNeighborVelocity() const;
@@ -50,13 +45,17 @@ private:
 
 	int FlockSize{0};
 	TArray<ASteeringAgent *> Agents{};
-#ifdef GAMEAI_USE_SPACE_PARTITIONING
-	// std::unique_ptr<CellSpace> pPartitionedSpace{};
-	// int NrOfCellsX{ 10 };
-	// TArray<FVector2D> OldPositions{};
-#else  // No space partitioning
+
+	// Brute-force neighbors (always available)
 	TArray<ASteeringAgent *> Neighbors{};
-#endif // USE_SPACE_PARTITIONING
+
+#ifdef GAMEAI_USE_SPACE_PARTITIONING
+	// Spatial partitioning members
+	std::unique_ptr<CellSpace> pPartitionedSpace;
+	int NrOfCellsX{25};
+	TArray<FVector2D> OldPositions{};
+	bool bUseSpacePartitioning{true}; // Runtime toggle
+#endif
 
 	float NeighborhoodRadius{200.f};
 	float EvadeRadius{400.f};
