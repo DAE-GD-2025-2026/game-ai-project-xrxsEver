@@ -79,17 +79,24 @@ namespace GameAI
 		std::vector<Node*> Nodes = m_pGraph->GetActiveNodes();
 		if (Nodes.size() == 0)
 			return false;
+		
+		std::vector<bool> visited(Nodes.size(), false);
 
 		// TODO choose a starting node	
 		auto startingpoint = Nodes.front();
 
 		if (startingpoint)
 		{
-			
+			VisitAllNodesDFS(Nodes,visited,startingpoint->GetId());
 		}
+
 		
 		// TODO start a depth-first-search traversal from the node that has at least one connection
-		
+		for (auto node : Nodes)
+		{
+			if (!visited[node->GetId()])return false;
+			visited[node->GetId()] = true;
+		}
 		// TODO if a node was never visited, this graph is not connected
 	}
 }
