@@ -1,8 +1,8 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "FSMComponent.h"
+#include "FSM.h"
+#include "AIController.h"
 
+UFSMComponent::~UFSMComponent() = default;
 
 // Sets default values for this component's properties
 UFSMComponent::UFSMComponent()
@@ -11,44 +11,100 @@ UFSMComponent::UFSMComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
-	// TODO Setup FSM
+	FSMInstance = std::make_unique<GameAI::FSM::FSM>();
 }
 
-
-void UFSMComponent::AddState(std::unique_ptr<GameAI::FSM::State>&& NewState)
+GameAI::FSM::State *UFSMComponent::AddState(std::unique_ptr<GameAI::FSM::State> &&NewState)
 {
-	// TODO
+	if (!FSMInstance)
+	{
+		FSMInstance = std::make_unique<GameAI::FSM::FSM>();
+	}
+
+	return FSMInstance->AddState(MoveTemp(NewState));
+}
+
+void UFSMComponent::AddTransition(GameAI::FSM::State* From, GameAI::FSM::State* To, FTransitionPredicate EvalFunc) const
+{
+	if (!ensure(FSMInstance))
+	{
+		return;
+	}
+
+	const bool bAdded = FSMInstance->AddTransition(From, To, MoveTemp(EvalFunc));
+	ensureMsgf(bAdded, TEXT("Failed to add FSM transition."));
 }
 
 void UFSMComponent::AddTransition(GameAI::FSM::State* From, GameAI::FSM::State* To, std::function<bool()> EvalFunc) const
 {
-	// TODO
+	AddTransition(From, To,
+				  [Predicate = MoveTemp(EvalFunc)](const GameAI::FSM::Context &)
+				  {
+					  return Predicate && Predicate();
+				  });
+}
+
+bool UFSMComponent::SetInitialState(GameAI::FSM::State *NewInitialState)
+{
+	if (!FSMInstance)
+	{
+		return false;
+	}
+
+	return FSMInstance->SetInitialState(NewInitialState);
 }
 
 // Called when the game starts
 void UFSMComponent::BeginPlay()
 {
 	Super::BeginPlay();
-}
 
+	if (FSMInstance)
+	{
+		FSMInstance->SetContext(BuildContext(0.0f));
+	}
+}
 
 // Called every frame
 void UFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	// TODO
+
+	if (!FSMInstance || !bIsRunning)
+	{
+		return;
+	}
+
+	FSMInstance->SetContext(BuildContext(DeltaTime));
+	FSMInstance->Tick(DeltaTime);
+	bIsRunning = FSMInstance->IsRunning();
 }
 
 void UFSMComponent::StartLogic()
 {
 	Super::StartLogic();
 
-	// TODO
+	if (!FSMInstance)
+	{
+		FSMInstance = std::make_unique<GameAI::FSM::FSM>();
+	}
+
+	FSMInstance->SetContext(BuildContext(0.0f));
+	FSMInstance->Start();
+	bIsRunning = FSMInstance->IsRunning();
 }
 
 void UFSMComponent::StopLogic(const FString& Reason)
 {
-	// TODO
+	Super::StopLogic(Reason);
+
+	if (FSMInstance)
+	{
+		FSMInstance->SetContext(BuildContext(0.0f));
+		FSMInstance->Stop();
+	}
+
+	bIsRunning = false;
 }
 
 bool UFSMComponent::IsRunning() const
@@ -56,3 +112,25 @@ bool UFSMComponent::IsRunning() const
 	return bIsRunning;
 }
 
+GameAI::FSM::State *UFSMComponent::GetCurrentState() const
+{
+	if (!FSMInstance)
+	{
+		return nullptr;
+	}
+
+	return FSMInstance->GetCurrentState();
+}
+
+GameAI::FSM::Context UFSMComponent::BuildContext(float DeltaTime) const
+{
+	GameAI::FSM::Context Context{};
+	Context.Owner = GetOwner();
+	Context.DeltaTime = DeltaTime;
+
+	AAIController *AIController = Cast<AAIController>(GetOwner());
+	Context.Controller = AIController;
+	Context.Blackboard = AIController ? AIController->GetBlackboardComponent() : nullptr;
+
+	return Context;
+}
