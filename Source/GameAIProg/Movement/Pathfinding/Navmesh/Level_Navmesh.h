@@ -35,6 +35,7 @@ private:
 
 	UPROPERTY()
 	ASteeringAgent *Agent{nullptr}; // ref
+	float OriginalAgentMaxSpeed{0.f};
 	PathFollow PathFollow{};
 	std::vector<FVector2D> DebugDrawPath{};
 	std::vector<GameAI::NavLine> DebugPortals{};

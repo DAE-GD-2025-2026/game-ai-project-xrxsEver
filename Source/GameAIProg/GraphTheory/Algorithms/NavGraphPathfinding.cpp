@@ -1,5 +1,7 @@
 ﻿#include "NavGraphPathfinding.h"
 
+#include <limits>
+
 #include "AStar.h"
 #include "PathSmoothing.h"
 #include "VectorTypes.h"
@@ -19,11 +21,14 @@ std::vector<FVector2D> NavMeshPathfinding::FindPath(const FVector2D &startPos, c
 	auto const *startTriangle = pNavPoly->GetTriangleAtPosition(startPos, true);
 	auto const *endTriangle = pNavPoly->GetTriangleAtPosition(endPos, true);
 
-	// We have valid start/end triangles and they are not the same
-	if (!startTriangle || !endTriangle)
+	// The agent itself must be on the navmesh, otherwise we have nothing to path from.
+	if (!startTriangle)
 		return finalPath;
 
-	if (*startTriangle == *endTriangle)
+	// Note: a null endTriangle means the goal was clicked outside the navmesh. We do NOT
+	// bail here - instead we let A* fail to reach the (unconnected) end node so the
+	// Fallback Path logic below can route the agent to the closest reachable node.
+	if (endTriangle && *startTriangle == *endTriangle)
 	{
 		finalPath.push_back(startPos);
 		finalPath.push_back(endPos);
@@ -57,19 +62,24 @@ std::vector<FVector2D> NavMeshPathfinding::FindPath(const FVector2D &startPos, c
 	// Create extra node for the endNode
 	int endNodeId = pClonedGraph->AddNode(std::make_unique<NavGraphNode>(endPos, -1));
 
-	// Connect nodes on edges of endTriangle to end node
-	auto endEdges = endTriangle->GetEdges();
-	for (auto const &edge : endEdges)
+	// Connect nodes on edges of endTriangle to end node.
+	// If endTriangle is null (goal clicked off the navmesh) the end node stays unconnected,
+	// which makes A* fail to reach it and triggers the Fallback Path below.
+	if (endTriangle)
 	{
-		int edgeIdx = pNavPoly->FindEdgeIndex(edge).value_or(-1);
-		if (edgeIdx >= 0)
+		auto endEdges = endTriangle->GetEdges();
+		for (auto const &edge : endEdges)
 		{
-			int nodeId = pClonedGraph->GetNodeIdFromEdgeIndex(edgeIdx);
-			if (nodeId != Graphs::InvalidNodeId)
+			int edgeIdx = pNavPoly->FindEdgeIndex(edge).value_or(-1);
+			if (edgeIdx >= 0)
 			{
-				auto connection = std::make_unique<Connection>(nodeId, endNodeId);
-				connection->SetWeight(FVector2D::Distance(endPos, pClonedGraph->GetNode(nodeId)->GetPosition()));
-				pClonedGraph->AddConnection(std::move(connection));
+				int nodeId = pClonedGraph->GetNodeIdFromEdgeIndex(edgeIdx);
+				if (nodeId != Graphs::InvalidNodeId)
+				{
+					auto connection = std::make_unique<Connection>(nodeId, endNodeId);
+					connection->SetWeight(FVector2D::Distance(endPos, pClonedGraph->GetNode(nodeId)->GetPosition()));
+					pClonedGraph->AddConnection(std::move(connection));
+				}
 			}
 		}
 	}
@@ -79,6 +89,36 @@ std::vector<FVector2D> NavMeshPathfinding::FindPath(const FVector2D &startPos, c
 	auto nodes = astar.FindPath(
 		pClonedGraph->GetNode(startNodeId).get(),
 		pClonedGraph->GetNode(endNodeId).get());
+
+	// Fallback Path: if the goal is unreachable (A* never expanded the end node, e.g. the
+	// start and goal lie in disconnected parts of the navmesh), pathfind to the graph node
+	// closest to the original goal instead so the agent still moves as near as possible.
+	bool const bReachedGoal = !nodes.empty() && nodes.back()->GetId() == endNodeId;
+	if (!bReachedGoal)
+	{
+		Node *pClosestNode = nullptr;
+		float closestDistSq = std::numeric_limits<float>::max();
+		for (Node *pNode : pClonedGraph->GetActiveNodes())
+		{
+			// Skip the helper start/end nodes we injected above
+			if (pNode->GetId() == startNodeId || pNode->GetId() == endNodeId)
+				continue;
+
+			float const distSq = FVector2D::DistSquared(pNode->GetPosition(), endPos);
+			if (distSq < closestDistSq)
+			{
+				closestDistSq = distSq;
+				pClosestNode = pNode;
+			}
+		}
+
+		if (pClosestNode)
+		{
+			nodes = astar.FindPath(
+				pClonedGraph->GetNode(startNodeId).get(),
+				pClonedGraph->GetNode(pClosestNode->GetId()).get());
+		}
+	}
 
 	// Debug Visualisation
 	for (auto const *node : nodes)

@@ -44,6 +44,11 @@ void ALevel_Navmesh::BeginPlay()
 	Agent->SetDebugRenderingEnabled(false);
 	Agent->SetSteeringBehavior(&PathFollow);
 
+	// Cache the agent's default movement speed. The Arrive behavior drives the agent's
+	// max speed down to 0 when it reaches its target, so we restore this value every time
+	// we hand the agent a new path (see SetTarget).
+	OriginalAgentMaxSpeed = Agent->GetMaxLinearSpeed();
+
 	auto NavPoly{std::make_unique<TriPolygon>()};
 	for (TArray<FVector> const &Tri : ExtractNavMeshTris())
 	{
@@ -225,6 +230,10 @@ TArray<TArray<FVector>> ALevel_Navmesh::ExtractNavMeshTris() const
 
 void ALevel_Navmesh::SetTarget()
 {
+	// Restore the agent's movement speed. Arrive zeroes it out once it reaches a target,
+	// so without this the agent would stay frozen when given a new destination.
+	Agent->SetMaxLinearSpeed(OriginalAgentMaxSpeed);
+
 	GameAI::NavMeshPathfinding Pathfinder{};
 	std::vector<FVector2D> debugNodePositions{};
 	std::vector<GameAI::NavLine> debugPortals{};
